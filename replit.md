@@ -4,42 +4,73 @@ Smart hostel mess (canteen) food & attendance tracking app. Students log daily l
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080)
-- `pnpm --filter @workspace/mess-tracker run dev` — run the frontend (port from $PORT)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+```bash
+# Install dependencies
+npm install --prefix artifacts/mess-tracker
+npm install --prefix artifacts/api-server
+
+# Development
+npm run dev --prefix artifacts/mess-tracker    # frontend (port from $PORT)
+npm run dev --prefix artifacts/api-server      # API server (port 8080)
+
+# Production build
+npm run build --prefix artifacts/mess-tracker  # → artifacts/mess-tracker/dist/
+npm run build --prefix artifacts/api-server    # → artifacts/api-server/dist/
+
+# Vercel (frontend only)
+# installCommand: npm install --prefix artifacts/mess-tracker
+# buildCommand:   npm run build --prefix artifacts/mess-tracker
+# outputDirectory: artifacts/mess-tracker/dist
+```
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
+- npm (standalone packages, no workspace protocol)
+- Node.js 24, TypeScript 5.9
 - Frontend: Vite + React 19, Tailwind CSS v4, wouter, shadcn/ui
 - API: Express 5, pino logging
 - Auth & Data: Supabase (auth + Postgres via supabase-js)
 - DB (chatbot): PostgreSQL + Drizzle ORM (conversations/messages tables)
 - AI Chatbot: Groq SDK (MessBot)
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle for api-server)
+- Build: esbuild (bundled ESM for api-server)
 
 ## Where things live
 
-- `artifacts/mess-tracker/` — Vite + React frontend
-- `artifacts/api-server/` — Express 5 backend
-- `lib/api-spec/openapi.yaml` — OpenAPI spec (source of truth for API)
-- `lib/api-zod/src/generated/` — generated Zod schemas (server-side)
-- `lib/api-client-react/src/generated/` — generated React Query hooks (client-side)
-- `lib/db/src/schema/` — Drizzle schema (mess_entries, user_settings, conversations, messages)
-- `artifacts/mess-tracker/src/lib/supabase-client.ts` — Supabase client (frontend)
-- `artifacts/api-server/src/lib/supabase.ts` — Supabase admin client (backend)
+```
+artifacts/
+  mess-tracker/          ← React/Vite frontend (standalone npm package)
+    src/
+      lib/api-client-react/  ← inlined from lib/api-client-react (generated hooks)
+      pages/, components/, hooks/, lib/
+    package.json           ← all real versions (no catalog:, no workspace:*)
+    vite.config.ts
+    tsconfig.json
+  api-server/            ← Express backend (standalone npm package)
+    src/
+      lib/api-zod/           ← inlined from lib/api-zod (generated Zod schemas)
+      lib/db/                ← inlined from lib/db (Drizzle ORM + schema)
+      routes/, middlewares/, lib/
+    package.json
+    build.mjs              ← esbuild bundler (with @workspace/* alias)
+    tsconfig.json          ← paths for @workspace/api-zod, @workspace/db
+lib/
+  api-spec/openapi.yaml  ← OpenAPI spec (source of truth)
+  api-client-react/      ← source (inlined into mess-tracker)
+  api-zod/               ← source (inlined into api-server)
+  db/                    ← source (inlined into api-server)
+vercel.json              ← Vercel deployment config (frontend)
+pnpm-workspace.yaml      ← minimal shim (needed for Replit workflow commands)
+```
 
 ## Architecture decisions
 
 - Auth is fully Supabase-based (not Clerk). Frontend uses supabase-js directly; backend verifies JWT via supabase.auth.getUser().
-- Most data (mess_entries, user_settings) lives in Supabase Postgres, accessed via supabase-js (not Drizzle). Drizzle is used only for chatbot conversations/messages tables in the Replit DB.
+- Most data (mess_entries, user_settings) lives in Supabase Postgres, accessed via supabase-js (not Drizzle). Drizzle is used only for chatbot conversations/messages tables.
 - Admin access is determined by ADMIN_USER_IDS env var (comma-separated emails or user IDs).
-- Groq (grok-2) powers MessBot — falls back gracefully if GROQ_API_KEY is absent.
+- Groq (groq-sdk) powers MessBot — falls back gracefully if GROQ_API_KEY is absent.
 - UI is in Marathi (Devanagari script) with English fallbacks.
+- **Lib inlining**: `@workspace/api-client-react`, `@workspace/api-zod`, `@workspace/db` are copied into their consuming artifact's `src/lib/` and resolved via path aliases in tsconfig + vite config + esbuild. Original imports (`@workspace/*`) still work unchanged.
+- **pnpm-workspace.yaml shim**: Replit's artifact-managed workflows run `pnpm --filter @workspace/* run dev`. A minimal pnpm-workspace.yaml pointing to `artifacts/*` is kept so pnpm can locate packages. The scripts themselves invoke npm.
 
 ## Product
 
@@ -68,11 +99,10 @@ _None yet._
 
 ## Gotchas
 
-- Running `pnpm dev` at workspace root won't work — use artifact-specific commands or restart workflows.
-- After any OpenAPI spec change, always re-run codegen before using updated types.
-- The Supabase DB (mess_entries, user_settings) is separate from the Replit DB (conversations, messages). Don't mix them.
+- `pnpm-workspace.yaml` is intentionally minimal (only `artifacts/*`) — it's a compatibility shim for Replit's artifact-managed workflow runner which uses pnpm filter commands. Do NOT add `lib/*` back; the lib sources are now inlined into each artifact.
+- The `@workspace/api-client-react` import in frontend and `@workspace/api-zod` / `@workspace/db` imports in the backend resolve via path aliases (vite.config alias + tsconfig paths + esbuild alias). Do not remove these aliases.
+- After any OpenAPI spec change, re-run codegen and copy the generated files into both artifact `src/lib/` directories:
+  - `lib/api-client-react/src/generated/` → `artifacts/mess-tracker/src/lib/api-client-react/generated/`
+  - `lib/api-zod/src/generated/` → `artifacts/api-server/src/lib/api-zod/generated/`
 - Admin check uses ADMIN_USER_IDS env var — add emails or Supabase user IDs there.
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- For Vercel deploy: only the frontend is deployed via vercel.json. The api-server must be hosted separately (e.g., Railway, Render, or another Vercel project).
