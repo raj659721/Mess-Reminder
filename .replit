@@ -18,3 +18,19 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[[ports]]
+localPort = 8081
+externalPort = 80
+
+[[ports]]
+localPort = 18441
+externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+SUPABASE_URL = "https://wopoptpbfyyphzhmuotu.supabase.co"
+VITE_SUPABASE_URL = "https://wopoptpbfyyphzhmuotu.supabase.co"
+ADMIN_USER_IDS = "rajsuryavanshi4400@gmail.com"
+VITE_PINGRAM_CLIENT_ID = "tlkb7g52zqd2qu6nxxse7q1rma"
