@@ -354,13 +354,23 @@ export async function customFetch<T = unknown>(
   if (_authTokenGetter && !headers.has("authorization")) {
     const token = await _authTokenGetter();
     if (token) {
-      headers.set("authorization", `Bearer ${token}`);
+      headers.set("Authorization", `Bearer ${token}`);
+    } else {
+      const url = resolveUrl(input);
+      if (url.startsWith("/api/") && typeof window !== "undefined" && window.location.hostname === "localhost") {
+        console.debug("customFetch: no auth token available for API request", url, token);
+      }
     }
   }
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  const response = await fetch(input, {
+    ...init,
+    method,
+    headers,
+    credentials: init.credentials ?? "include",
+  });
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);
