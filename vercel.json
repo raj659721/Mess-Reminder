@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "installCommand": "npm install --prefix artifacts/mess-tracker",
-  "buildCommand": "npm run build --prefix artifacts/mess-tracker",
+  "installCommand": "cd artifacts/mess-tracker && npm install --ignore-scripts",
+  "buildCommand": "cd artifacts/mess-tracker && npm run build",
   "outputDirectory": "artifacts/mess-tracker/dist",
   "framework": null,
   "rewrites": [
