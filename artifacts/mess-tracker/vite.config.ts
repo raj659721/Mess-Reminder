@@ -60,6 +60,14 @@ export default defineConfig(async () => {
       fs: {
         strict: false,
       },
+      proxy: isReplit
+        ? {
+            "/api": {
+              target: "http://localhost:8080",
+              changeOrigin: true,
+            },
+          }
+        : undefined,
     },
     preview: {
       port,
